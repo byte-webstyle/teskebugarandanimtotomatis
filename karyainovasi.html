@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tes Kebugaran & IMT Otomatis</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Transisi halus untuk elemen interaktif */
+    .smooth-transition {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    /* Pengaturan khusus saat Cetak PDF (Ctrl+P / Tombol Cetak) */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #areaCetakRapor, #areaCetakRapor * {
+        visibility: visible;
+      }
+      #areaCetakRapor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastNotif" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 smooth-transition bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium no-print pointer-events-none">
+    <span id="toastIcon">✅</span>
+    <span id="toastPesan">Data berhasil disimpan!</span>
+  </div>
+
+  <!-- HEADER UTAMA -->
+<header class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    
+    <!-- Judul Aplikasi -->
+    <div class="flex items-center gap-4">
+      <div class="bg-blue-800/60 p-3 rounded-2xl border border-blue-700 shadow-inner text-3xl shrink-0">
+        🏃‍♂️
+      </div>
+      <div>
+        <span class="bg-amber-400 text-slate-900 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full tracking-wider">INDONESIA</span>
+        <h1 class="text-2xl font-bold tracking-tight mt-0.5">Sistem Rapor Kebugaran & IMT Otomatis</h1>
+        <p class="text-blue-200 text-xs md:text-sm">Instrumen Asesmen PJOK Berbasis Tes Kesegaran Jasmani Indonesia (TKJI)</p>
+      </div>
+    </div>
+
+    <!-- Tombol Aksi Cepat (Ekspor & Reset) -->
+    <!-- 🔴 PERBAIKAN: w-full justify-end meluruskan tombol ke kanan pada mobile -->
+    <div class="flex items-center justify-end gap-2.5 w-full sm:w-auto pt-2 sm:pt-0 border-t border-blue-800/40 sm:border-0">
+      <button onclick="eksporKeCSV()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs font-semibold smooth-transition shadow flex items-center gap-1.5">
+        📥 Ekspor CSV
+      </button>
+      <button onclick="resetDataContoh()" class="bg-blue-700 hover:bg-blue-600 active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs font-semibold smooth-transition border border-blue-500 flex items-center gap-1.5">
+        🔄 Data Contoh
+      </button>
+    </div>
+
+  </div>
+</header>
+
+  <!-- KONTEN UTAMA -->
+  <main class="max-w-7xl w-full mx-auto px-6 py-6 space-y-6 flex-grow">
+
+    <!-- BARIS STATISTIK RINGKASAN KELAS (INTERAKTIF) -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3.5 hover:shadow-md smooth-transition">
+        <div class="bg-blue-100 text-blue-700 p-3 rounded-xl text-xl font-bold">👥</div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Total Siswa Diuji</p>
+          <p id="statTotalSiswa" class="text-xl font-extrabold text-slate-800">0 Siswa</p>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3.5 hover:shadow-md smooth-transition">
+        <div class="bg-emerald-100 text-emerald-700 p-3 rounded-xl text-xl font-bold">📈</div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Rata-Rata Kebugaran</p>
+          <p id="statRataNilai" class="text-xl font-extrabold text-emerald-700">0.0</p>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3.5 hover:shadow-md smooth-transition">
+        <div class="bg-amber-100 text-amber-700 p-3 rounded-xl text-xl font-bold">⚖️</div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Siswa IMT Ideal</p>
+          <p id="statImtIdeal" class="text-xl font-extrabold text-amber-700">0%</p>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3.5 hover:shadow-md smooth-transition">
+        <div class="bg-purple-100 text-purple-700 p-3 rounded-xl text-xl font-bold">🏆</div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Nilai Tertinggi</p>
+          <p id="statNilaiMax" class="text-xl font-extrabold text-purple-700">0</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- KOLOM SAMPING KIRI: KARTU PROFIL PENGEMBANG (TERKUNCI) & FORM INPUT SISWA (4 Kolom) -->
+      <aside class="lg:col-span-4 space-y-6 h-fit no-print">
+        
+        <!-- PANEL KARTU PROFIL PENGEMBANG / GURU PJOK (PERMANEN / TIDAK DAPAT DIUBAH) -->
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden select-none">
+          <!-- Banner Atas Kartu Profil -->
+          <div class="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 h-20 relative flex items-start justify-between p-3">
+            <span class="bg-blue-950/60 text-blue-200 border border-blue-700/60 text-[10px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              🔒 Resmi & Terverifikasi
+            </span>
+            <span class="bg-amber-400 text-slate-900 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-sm">
+              Profil Pengembang
+            </span>
+          </div>
+
+          <!-- Konten Utama Kartu Profil -->
+          <div class="px-6 pb-6 pt-0 relative flex flex-col items-center text-center">
+            <!-- Foto Profil Besar Berbingkai Emas (Terkunci) -->
+            <div class="relative -mt-11 mb-3">
+              <img id="foto1.png" src="foto1.png" alt="Foto Profil Pembuat" class="w-24 h-24 rounded-full object-cover border-4 border-white ring-4 ring-slate-200 shadow-md bg-slate-200 pointer-events-none">
+              <span class="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" title="Profil Resmi"></span>
+            </div>
+
+            <!-- Nama Lengkap & Jabatan (Terkunci / Read-Only) -->
+            <p class="text-[11px] uppercase tracking-wider text-blue-700 font-bold bg-blue-50 px-2.5 py-0.5 rounded-full mb-1">
+              Pengembang / Guru PJOK
+            </p>
+            <h3 id="namaPembuatSidebar" class="text-lg font-extrabold text-slate-800 px-2 py-0.5">
+              Muhammad Rifaldo Bre
+            </h3>
+
+            <!-- Detail Instansi & NIP (Terkunci / Read-Only) -->
+            <div class="w-full mt-3 pt-3 border-t border-slate-100 space-y-2 text-left text-xs">
+              <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200/70">
+                <span class="text-slate-500 font-medium">🏫 Instansi:</span>
+                <span id="instansiPembuatSidebar" class="font-bold text-slate-700 text-right">
+                  SMA Negeri 21 Surabaya
+                </span>
+              </div>
+              <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200/70">
+                <span class="text-slate-500 font-medium">🪪 NIP/NUPTK:</span>
+                <span id="nipPembuatSidebar" class="font-mono font-semibold text-slate-700 text-right">
+                  255970088
+                </span>
+              </div>
+            </div>
+
+            <!-- TOMBOL & PANEL "HUBUNGI SAYA" (TANPA TOMBOL EDIT) -->
+            <div class="w-full mt-4 space-y-2.5">
+              <button type="button" onclick="togglePanelSosmed()" id="btnHubungiSaya" class="w-full bg-gradient-to-r from-blue-800 to-indigo-800 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-sm smooth-transition flex items-center justify-center gap-2">
+                <span>💬 Hubungi Saya</span>
+                <svg id="ikonPanahSosmed" class="w-3.5 h-3.5 transform rotate-180 smooth-transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+
+              <!-- Daftar Link Media Sosial Senada Warna Biru (Instagram, TikTok, YouTube) -->
+<div id="panelKontakSosmed" class="grid grid-cols-3 gap-2 pt-1 smooth-transition">
+  
+  <!-- Link Instagram -->
+  <a id="linkIgSidebar" href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" 
+     class="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl bg-gradient-to-r from-blue-800 to-indigo-800 hover:from-blue-700 hover:to-indigo-700 text-white shadow-sm hover:shadow active:scale-95 smooth-transition group">
+    <svg class="w-4 h-4 fill-current text-white group-hover:scale-110 smooth-transition" viewBox="0 0 24 24">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+    </svg>
+    <span class="text-[10px] font-bold tracking-wide">Instagram</span>
+  </a>
+
+  <!-- Link TikTok -->
+  <a id="linkTiktokSidebar" href="https://www.tiktok.com/@guruborongan" target="_blank" rel="noopener noreferrer" 
+     class="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl bg-gradient-to-r from-blue-800 to-indigo-800 hover:from-blue-700 hover:to-indigo-700 text-white shadow-sm hover:shadow active:scale-95 smooth-transition group">
+    <svg class="w-4 h-4 fill-current text-white group-hover:scale-110 smooth-transition" viewBox="0 0 24 24">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+    </svg>
+    <span class="text-[10px] font-bold tracking-wide">TikTok</span>
+  </a>
+
+  <!-- Link YouTube -->
+  <a id="linkYtSidebar" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" 
+     class="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl bg-gradient-to-r from-blue-800 to-indigo-800 hover:from-blue-700 hover:to-indigo-700 text-white shadow-sm hover:shadow active:scale-95 smooth-transition group">
+    <svg class="w-4 h-4 fill-current text-white group-hover:scale-110 smooth-transition" viewBox="0 0 24 24">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+    </svg>
+    <span class="text-[10px] font-bold tracking-wide">YouTube</span>
+  </a>
+
+</div>
+        </section>
+
+        <!-- FORM INPUT SISWA DENGAN LIVE PREVIEW -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex justify-between items-center border-b pb-2 mb-4">
+            <h2 class="text-lg font-bold text-blue-900">➕ Input Data Tes Siswa</h2>
+            <span class="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-semibold">Live Kalkulator</span>
+          </div>
+          
+          <form id="formSiswa" onsubmit="tambahSiswa(event)" oninput="updateLivePreview()" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nama Lengkap Siswa</label>
+              <input type="text" id="nama" required placeholder="Contoh: Ahmad Fauzi" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Kelas / Absen</label>
+                <input type="text" id="kelas" required placeholder="X-A / 01" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Jenis Kelamin</label>
+                <select id="jk" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+                  <option value="L">Putra (L)</option>
+                  <option value="P">Putri (P)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Input IMT + Live Badge -->
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-700 uppercase">Antropometri Tubuh</span>
+                <span id="liveImtBadge" class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">IMT: -</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs text-slate-600 mb-1">Tinggi Badan (cm)</label>
+                  <input type="number" step="0.1" id="tinggi" required placeholder="168" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-600 mb-1">Berat Badan (kg)</label>
+                  <input type="number" step="0.1" id="berat" required placeholder="60" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+                </div>
+              </div>
+            </div>
+
+            <!-- Input TKJI + Live Skor per Item -->
+            <div class="space-y-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+              <div class="flex justify-between items-center">
+                <p class="text-xs font-bold text-blue-900 uppercase">Hasil Tes Fisik (TKJI)</p>
+                <span id="liveNilaiBadge" class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">Prediksi: 0</span>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs text-slate-600 mb-1">
+                  <label>1. Lari Cepat 60 Meter (detik)</label>
+                  <span id="liveSkorLari" class="font-bold text-blue-700">Skor: -</span>
+                </div>
+                <input type="number" step="0.01" id="lari" required placeholder="Contoh: 7.8" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <div class="flex justify-between text-xs text-slate-600 mb-1">
+                  <label>2. Sit-Up 60 Detik (repetisi)</label>
+                  <span id="liveSkorSitup" class="font-bold text-blue-700">Skor: -</span>
+                </div>
+                <input type="number" id="situp" required placeholder="Contoh: 35" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+              </div>
+              <div>
+                <div class="flex justify-between text-xs text-slate-600 mb-1">
+                  <label>3. Loncat Tegak / Vertical Jump (cm)</label>
+                  <span id="liveSkorLoncat" class="font-bold text-blue-700">Skor: -</span>
+                </div>
+                <input type="number" step="0.5" id="loncat" required placeholder="Contoh: 62" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+              </div>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-800 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold py-2.5 rounded-lg shadow smooth-transition text-sm">
+              💾 Simpan & Hitung Nilai Otomatis
+            </button>
+          </form>
+        </section>
+
+      </aside>
+
+      <!-- KOLOM KANAN: TABEL REKAP & PRATINJAU RAPOR PDF (8 Kolom) -->
+      <section class="lg:col-span-8 space-y-6">
+        
+        <!-- TABEL REKAPITULASI KELAS -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 no-print">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-4 gap-3">
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-bold text-blue-900">📊 Daftar Rekapitulasi Siswa</h2>
+              <span id="jumlahSiswaBadge" class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-full">0 Siswa</span>
+            </div>
+
+            <!-- Pencarian & Filter Interaktif -->
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <input type="text" id="cariSiswa" oninput="simpanDanRender()" placeholder="🔍 Cari nama/kelas..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-44">
+              <select id="filterJk" onchange="simpanDanRender()" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="SEMUA">Semua Gender</option>
+                <option value="L">Putra (L)</option>
+                <option value="P">Putri (P)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-100 text-slate-700 border-b text-xs uppercase">
+                  <th class="py-3 px-3">Nama & Kelas</th>
+                  <th class="py-3 px-2 text-center">L/P</th>
+                  <th class="py-3 px-2 text-center">IMT</th>
+                  <th class="py-3 px-2 text-center">Skor (L/S/LT)</th>
+                  <th class="py-3 px-2 text-center">Nilai Akhir</th>
+                  <th class="py-3 px-2 text-center">Predikat</th>
+                  <th class="py-3 px-3 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="tabelBody" class="divide-y divide-slate-200">
+                <!-- Baris siswa dirender otomatis via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- KARTU PRATINJAU RAPOR INDIVIDU (SIAP CETAK PDF A4) -->
+        <div id="areaCetakRapor" class="bg-white p-8 rounded-xl shadow-sm border-2 border-blue-900">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b-2 border-blue-900 pb-4 mb-6 gap-3">
+            <div>
+              <h2 class="text-xl font-extrabold text-blue-900 uppercase tracking-wide">Rapor Kebugaran Jasmani & IMT Siswa</h2>
+              <p class="text-xs text-slate-500 mt-1">
+                <span id="instansiRapor" class="font-semibold text-slate-700">SMA Negeri 21 Surabaya</span>
+                • Standar Kemenkes RI & Norma TKJI
+              </p>
+            </div>
+            
+            <!-- Pengaturan Tanggal, Tipe Grafik & Tombol Cetak (Tidak ikut tercetak) -->
+            <div class="no-print flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-300 rounded-lg px-2.5 py-1.5">
+                <label for="inputTanggalCetak" class="text-xs font-semibold text-slate-600">📅 Tanggal:</label>
+                <input type="date" id="inputTanggalCetak" onchange="ubahTanggalRapor()" class="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer">
+              </div>
+              <button onclick="gantiTipeGrafik()" id="btnTipeGrafik" class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-semibold smooth-transition">
+                🕸️ Mode Radar
+              </button>
+              <button onclick="window.print()" class="bg-blue-900 hover:bg-blue-800 active:scale-95 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-1.5 smooth-transition">
+                🖨️ Cetak PDF (A4)
+              </button>
+            </div>
+          </div>
+
+          <!-- Identitas & Ringkasan IMT Siswa Terpilih -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 text-sm">
+            <div>
+              <p class="text-xs text-slate-500">Nama Siswa</p>
+              <p id="raporNama" class="font-bold text-slate-800 text-base">-</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">Kelas & Gender</p>
+              <p id="raporKelasJk" class="font-semibold text-slate-800">-</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">Tinggi / Berat Badan</p>
+              <p id="raporTbBb" class="font-semibold text-slate-800">-</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">Indeks Massa Tubuh (IMT)</p>
+              <p id="raporImt" class="font-bold text-blue-800">-</p>
+            </div>
+          </div>
+
+          <!-- Detail Tabel & Grafik Profil -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+            <!-- Tabel Skor Komponen (7 Kolom) -->
+            <div class="md:col-span-7">
+              <h3 class="text-xs font-bold uppercase text-blue-900 mb-2">Rincian Capaian Tes Fisik</h3>
+              <table class="w-full text-xs border border-slate-300">
+                <thead class="bg-slate-100">
+                  <tr>
+                    <th class="border border-slate-300 p-2 text-left">Komponen Kebugaran</th>
+                    <th class="border border-slate-300 p-2 text-center">Hasil Tes</th>
+                    <th class="border border-slate-300 p-2 text-center">Skor (1-5)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="border border-slate-300 p-2 font-medium">1. Lari Cepat 60 Meter (Kecepatan)</td>
+                    <td id="raporLariHasil" class="border border-slate-300 p-2 text-center">-</td>
+                    <td id="raporLariSkor" class="border border-slate-300 p-2 text-center font-bold text-blue-900">-</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-2 font-medium">2. Sit-Up 60 Detik (Kekuatan Otot Perut)</td>
+                    <td id="raporSitupHasil" class="border border-slate-300 p-2 text-center">-</td>
+                    <td id="raporSitupSkor" class="border border-slate-300 p-2 text-center font-bold text-blue-900">-</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-slate-300 p-2 font-medium">3. Loncat Tegak / Vertical Jump (Daya Ledak)</td>
+                    <td id="raporLoncatHasil" class="border border-slate-300 p-2 text-center">-</td>
+                    <td id="raporLoncatSkor" class="border border-slate-300 p-2 text-center font-bold text-blue-900">-</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Kotak Nilai Akhir & Evaluasi -->
+              <div class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                  <p id="raporPredikat" class="text-xs font-bold text-blue-900 uppercase">Predikat: -</p>
+                  <p id="raporRekomendasi" class="text-xs text-slate-600 mt-0.5">💡 Evaluasi: -</p>
+                </div>
+                <div class="bg-blue-900 text-white px-4 py-2 rounded-lg text-center min-w-[90px]">
+                  <span class="block text-[10px] uppercase tracking-wider text-blue-200">Nilai Akhir</span>
+                  <span id="raporNilaiAkhir" class="text-xl font-extrabold">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Grafik Visualisasi Komponen (5 Kolom) -->
+            <div class="md:col-span-5 flex flex-col items-center justify-center bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <h3 class="text-xs font-bold uppercase text-slate-600 mb-2">Grafik Profil Fisik Siswa</h3>
+              <div class="w-full h-48 relative">
+                <canvas id="grafikSiswa"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tanda Tangan Pengembang / Guru PJOK (Terkunci) -->
+          <div class="mt-8 pt-4 border-t border-slate-200 flex justify-end text-xs">
+            <div class="text-center w-64">
+              <p id="tanggalCetak" class="text-slate-600">Surabaya</p>
+              <p class="font-semibold text-slate-700 mt-0.5">Guru Pendidikan Jasmani, Olahraga & Kesehatan</p>
+              <div class="h-16"></div>
+              <p id="namaGuruRapor" class="font-bold text-slate-900 underline">Muhammad Rifaldo Bre</p>
+              <p class="text-slate-500">NIP/NUPTK. <span id="nipGuruRapor" class="font-mono">255970088</span></p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <!-- FOOTER IDENTITAS PENGEMBANG (TERKUNCI) -->
+  <footer class="bg-slate-900 text-slate-400 text-xs py-5 mt-8 no-print select-none">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <img id="foto1.png" src="foto1.png" alt="Foto Pengembang" class="w-8 h-8 rounded-full border border-white object-cover pointer-events-none">
+        <span>Dikembangkan oleh <strong id="namaPembuatFooter" class="text-white">Muhammad Rifaldo Bre</strong> • Instrumen Asesmen PJOK</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a id="linkIgFooter" href="https://www.instagram.com/guruborongan/" target="_blank" rel="noopener noreferrer" class="hover:text-amber-400 smooth-transition">Instagram</a>
+        <a id="linkTiktokFooter" href="https://www.tiktok.com/@guruborongan" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-400 smooth-transition">TikTok</a>
+        <a id="linkYtFooter" href="https://www.youtube.com/@guruborongan" target="_blank" rel="noopener noreferrer" class="hover:text-red-400 smooth-transition">YouTube</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- LOGIKA PEMROGRAMAN JAVASCRIPT -->
+  <script>
+    // =========================================================================
+    // KONFIGURASI PROFIL PENGEMBANG PERMANEN (HANYA BISA DIUBAH LEWAT KODE INI)
+    // =========================================================================
+    const PROFIL_PENGEMBANG = Object.freeze({
+      nama: "Muhammad Rifaldo Bre",
+      instansi: "SMA Negeri 21 Surabaya",
+      nip: "255970088",
+      fotoUrl: "https://ui-avatars.com/api/?name=M+Rifaldo+Bre&background=f59e0b&color=fff&bold=true&size=160",
+      sosmed: {
+        ig: "https://www.instagram.com/guruborongan/",
+        tiktok: "https://www.tiktok.com/@guruborongan",
+        yt: "https://www.youtube.com/@guruborongan"
+      }
+    });
+
+    let daftarSiswa = [];
+    let chartInstance = null;
+    let tipeGrafikSaatIni = "bar";
+    let idSiswaAktif = null;
+
+    // Terapkan Profil Pengembang Permanen
+    function kunciProfilPengembang() {
+      document.getElementById("fotoPembuatSidebar").src = PROFIL_PENGEMBANG.fotoUrl;
+      document.getElementById("fotoPembuatFooter").src = PROFIL_PENGEMBANG.fotoUrl;
+
+      document.getElementById("namaPembuatSidebar").innerText = PROFIL_PENGEMBANG.nama;
+      document.getElementById("namaPembuatFooter").innerText = PROFIL_PENGEMBANG.nama;
+      document.getElementById("namaGuruRapor").innerText = PROFIL_PENGEMBANG.nama;
+
+      document.getElementById("instansiPembuatSidebar").innerText = PROFIL_PENGEMBANG.instansi;
+      document.getElementById("instansiRapor").innerText = PROFIL_PENGEMBANG.instansi;
+
+      document.getElementById("nipPembuatSidebar").innerText = PROFIL_PENGEMBANG.nip;
+      document.getElementById("nipGuruRapor").innerText = PROFIL_PENGEMBANG.nip;
+
+      document.getElementById("linkIgSidebar").href = PROFIL_PENGEMBANG.sosmed.ig;
+      document.getElementById("linkTiktokSidebar").href = PROFIL_PENGEMBANG.sosmed.tiktok;
+      document.getElementById("linkYtSidebar").href = PROFIL_PENGEMBANG.sosmed.yt;
+
+      document.getElementById("linkIgFooter").href = PROFIL_PENGEMBANG.sosmed.ig;
+      document.getElementById("linkTiktokFooter").href = PROFIL_PENGEMBANG.sosmed.tiktok;
+      document.getElementById("linkYtFooter").href = PROFIL_PENGEMBANG.sosmed.yt;
+    }
+
+    // 0. Fungsi Notifikasi Toast Interaktif
+    function tampilkanToast(pesan, icon = "✅") {
+      const toast = document.getElementById("toastNotif");
+      document.getElementById("toastPesan").innerText = pesan;
+      document.getElementById("toastIcon").innerText = icon;
+      toast.classList.remove("translate-y-20", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 2800);
+    }
+
+    // Fungsi Buka/Tutup Panel "Hubungi Saya" di Kartu Profil
+    function togglePanelSosmed() {
+      const panel = document.getElementById("panelKontakSosmed");
+      const ikon = document.getElementById("ikonPanahSosmed");
+      panel.classList.toggle("hidden");
+      ikon.classList.toggle("rotate-180");
+    }
+
+    // Fungsi Mengatur & Mengubah Tanggal Cetak Rapor
+    function setTanggalDefault() {
+      const inputTgl = document.getElementById("inputTanggalCetak");
+      if (!inputTgl.value) {
+        const hariIni = new Date();
+        const yyyy = hariIni.getFullYear();
+        const mm = String(hariIni.getMonth() + 1).padStart(2, '0');
+        const dd = String(hariIni.getDate()).padStart(2, '0');
+        inputTgl.value = `${yyyy}-${mm}-${dd}`;
+      }
+      ubahTanggalRapor();
+    }
+
+    function ubahTanggalRapor() {
+      const inputVal = document.getElementById("inputTanggalCetak").value;
+      if (!inputVal) return;
+      const [yyyy, mm, dd] = inputVal.split("-");
+      const objekTgl = new Date(yyyy, mm - 1, dd);
+      const tglTerformat = objekTgl.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+      });
+      document.getElementById("tanggalCetak").innerText = `Surabaya ${tglTerformat}`;
+    }
+
+    // 1. Fungsi Konversi IMT & TKJI (Usia 16-19 Tahun / SMA)
+    function hitungDataKebugaran(jk, tinggi, berat, lari, situp, loncat) {
+      const imt = +(berat / Math.pow(tinggi / 100, 2)).toFixed(2);
+      let katImt = "Ideal";
+      if (imt < 18.5) katImt = "Kurus";
+      else if (imt <= 25.0) katImt = "Ideal";
+      else if (imt <= 27.0) katImt = "Gemuk";
+      else katImt = "Obesitas";
+
+      let skorLari = 1, skorSitup = 1, skorLoncat = 1;
+
+      if (jk === "L") {
+        if (lari <= 7.2) skorLari = 5;
+        else if (lari <= 8.3) skorLari = 4;
+        else if (lari <= 9.6) skorLari = 3;
+        else if (lari <= 11.0) skorLari = 2;
+
+        if (situp >= 41) skorSitup = 5;
+        else if (situp >= 30) skorSitup = 4;
+        else if (situp >= 21) skorSitup = 3;
+        else if (situp >= 10) skorSitup = 2;
+
+        if (loncat >= 73) skorLoncat = 5;
+        else if (loncat >= 60) skorLoncat = 4;
+        else if (loncat >= 50) skorLoncat = 3;
+        else if (loncat >= 39) skorLoncat = 2;
+      } else {
+        if (lari <= 8.4) skorLari = 5;
+        else if (lari <= 9.8) skorLari = 4;
+        else if (lari <= 11.4) skorLari = 3;
+        else if (lari <= 13.4) skorLari = 2;
+
+        if (situp >= 28) skorSitup = 5;
+        else if (situp >= 20) skorSitup = 4;
+        else if (situp >= 10) skorSitup = 3;
+        else if (situp >= 3) skorSitup = 2;
+
+        if (loncat >= 50) skorLoncat = 5;
+        else if (loncat >= 39) skorLoncat = 4;
+        else if (loncat >= 31) skorLoncat = 3;
+        else if (loncat >= 23) skorLoncat = 2;
+      }
+
+      const totalSkor = skorLari + skorSitup + skorLoncat;
+      const nilaiAkhir = +((totalSkor / 15) * 100).toFixed(1);
+
+      let predikat = "Kurang Sekali";
+      if (nilaiAkhir >= 86) predikat = "Baik Sekali";
+      else if (nilaiAkhir >= 71) predikat = "Baik";
+      else if (nilaiAkhir >= 56) predikat = "Sedang";
+      else if (nilaiAkhir >= 40) predikat = "Kurang";
+
+      return { imt, katImt, skorLari, skorSitup, skorLoncat, nilaiAkhir, predikat };
+    }
+
+    // Fitur Live Preview saat Guru Mengetik di Form
+    function updateLivePreview() {
+      const jk = document.getElementById("jk").value;
+      const tinggi = parseFloat(document.getElementById("tinggi").value) || 0;
+      const berat = parseFloat(document.getElementById("berat").value) || 0;
+      const lari = parseFloat(document.getElementById("lari").value) || 0;
+      const situp = parseInt(document.getElementById("situp").value) || 0;
+      const loncat = parseFloat(document.getElementById("loncat").value) || 0;
+
+      if (tinggi > 50 && berat > 10) {
+        const imt = +(berat / Math.pow(tinggi / 100, 2)).toFixed(1);
+        let kat = imt < 18.5 ? "Kurus" : imt <= 25 ? "Ideal" : imt <= 27 ? "Gemuk" : "Obesitas";
+        document.getElementById("liveImtBadge").innerText = `IMT: ${imt} (${kat})`;
+      } else {
+        document.getElementById("liveImtBadge").innerText = "IMT: -";
+      }
+
+      if (lari > 0 || situp > 0 || loncat > 0) {
+        const hasil = hitungDataKebugaran(jk, tinggi || 165, berat || 55, lari || 99, situp, loncat);
+        document.getElementById("liveSkorLari").innerText = lari > 0 ? `Skor: ${hasil.skorLari}` : "Skor: -";
+        document.getElementById("liveSkorSitup").innerText = situp > 0 ? `Skor: ${hasil.skorSitup}` : "Skor: -";
+        document.getElementById("liveSkorLoncat").innerText = loncat > 0 ? `Skor: ${hasil.skorLoncat}` : "Skor: -";
+        document.getElementById("liveNilaiBadge").innerText = `Prediksi: ${hasil.nilaiAkhir} (${hasil.predikat})`;
+      }
+    }
+
+    // 2. Tambah Siswa dari Form Input
+    function tambahSiswa(e) {
+      e.preventDefault();
+      const nama = document.getElementById("nama").value;
+      const kelas = document.getElementById("kelas").value;
+      const jk = document.getElementById("jk").value;
+      const tinggi = parseFloat(document.getElementById("tinggi").value);
+      const berat = parseFloat(document.getElementById("berat").value);
+      const lari = parseFloat(document.getElementById("lari").value);
+      const situp = parseInt(document.getElementById("situp").value);
+      const loncat = parseFloat(document.getElementById("loncat").value);
+
+      const hasil = hitungDataKebugaran(jk, tinggi, berat, lari, situp, loncat);
+
+      const siswaBaru = {
+        id: Date.now(),
+        nama, kelas, jk, tinggi, berat, lari, situp, loncat,
+        ...hasil
+      };
+
+      daftarSiswa.push(siswaBaru);
+      simpanDanRender();
+      pilihSiswaUntukRapor(siswaBaru.id);
+      document.getElementById("formSiswa").reset();
+      updateLivePreview();
+      tampilkanToast(`Data ${nama} berhasil ditambahkan!`);
+    }
+
+    // 3. Render Tabel, Statistik & Simpan ke LocalStorage
+    function simpanDanRender() {
+      localStorage.setItem("data_pjok_siswa", JSON.stringify(daftarSiswa));
+      const tbody = document.getElementById("tabelBody");
+      tbody.innerHTML = "";
+
+      const kataKunci = (document.getElementById("cariSiswa")?.value || "").toLowerCase();
+      const filterGender = document.getElementById("filterJk")?.value || "SEMUA";
+
+      const siswaTersaring = daftarSiswa.filter(s => {
+        const cocokNama = s.nama.toLowerCase().includes(kataKunci) || s.kelas.toLowerCase().includes(kataKunci);
+        const cocokJk = filterGender === "SEMUA" || s.jk === filterGender;
+        return cocokNama && cocokJk;
+      });
+
+      document.getElementById("jumlahSiswaBadge").innerText = `${siswaTersaring.length} Siswa`;
+
+      // Update Kartu Statistik Atas
+      document.getElementById("statTotalSiswa").innerText = `${daftarSiswa.length} Siswa`;
+      if (daftarSiswa.length > 0) {
+        const rataNilai = (daftarSiswa.reduce((acc, cur) => acc + cur.nilaiAkhir, 0) / daftarSiswa.length).toFixed(1);
+        const jmlIdeal = daftarSiswa.filter(s => s.katImt === "Ideal").length;
+        const persenIdeal = Math.round((jmlIdeal / daftarSiswa.length) * 100);
+        const nilaiMax = Math.max(...daftarSiswa.map(s => s.nilaiAkhir));
+
+        document.getElementById("statRataNilai").innerText = rataNilai;
+        document.getElementById("statImtIdeal").innerText = `${persenIdeal}%`;
+        document.getElementById("statNilaiMax").innerText = nilaiMax;
+      } else {
+        document.getElementById("statRataNilai").innerText = "0.0";
+        document.getElementById("statImtIdeal").innerText = "0%";
+        document.getElementById("statNilaiMax").innerText = "0";
+      }
+
+      siswaTersaring.forEach((s) => {
+        let warnaBadge = "bg-emerald-100 text-emerald-800";
+        if (s.nilaiAkhir < 56) warnaBadge = "bg-red-100 text-red-800";
+        else if (s.nilaiAkhir < 71) warnaBadge = "bg-amber-100 text-amber-800";
+
+        const aktifClass = s.id === idSiswaAktif ? "bg-blue-50/80 border-l-4 border-blue-700" : "hover:bg-slate-50";
+
+        const tr = document.createElement("tr");
+        tr.className = `${aktifClass} smooth-transition cursor-pointer`;
+        tr.onclick = () => pilihSiswaUntukRapor(s.id);
+        tr.innerHTML = `
+          <td class="py-3 px-3">
+            <div class="font-bold text-slate-800">${s.nama}</div>
+            <div class="text-xs text-slate-500">${s.kelas}</div>
+          </td>
+          <td class="py-3 px-2 text-center font-semibold">${s.jk}</td>
+          <td class="py-3 px-2 text-center">
+            <div class="font-semibold">${s.imt}</div>
+            <div class="text-[11px] text-slate-500">${s.katImt}</div>
+          </td>
+          <td class="py-3 px-2 text-center font-mono text-xs">${s.skorLari} / ${s.skorSitup} / ${s.skorLoncat}</td>
+          <td class="py-3 px-2 text-center font-bold text-blue-900">${s.nilaiAkhir}</td>
+          <td class="py-3 px-2 text-center">
+            <span class="${warnaBadge} px-2.5 py-0.5 rounded-full text-xs font-semibold">${s.predikat}</span>
+          </td>
+          <td class="py-3 px-3 text-center space-x-1" onclick="event.stopPropagation()">
+            <button onclick="pilihSiswaUntukRapor(${s.id})" class="bg-blue-100 hover:bg-blue-200 text-blue-800 px-2.5 py-1 rounded text-xs font-semibold smooth-transition">
+              📄 Rapor
+            </button>
+            <button onclick="hapusSiswa(${s.id})" class="bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded text-xs smooth-transition">
+              🗑️
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 4. Tampilkan Detail Rapor Siswa & Perbarui Grafik Chart.js
+    function pilihSiswaUntukRapor(id) {
+      const s = daftarSiswa.find(item => item.id === id);
+      if (!s) return;
+      idSiswaAktif = id;
+      simpanDanRender();
+
+      document.getElementById("raporNama").innerText = s.nama;
+      document.getElementById("raporKelasJk").innerText = `${s.kelas} (${s.jk === 'L' ? 'Putra' : 'Putri'})`;
+      document.getElementById("raporTbBb").innerText = `${s.tinggi} cm / ${s.berat} kg`;
+      document.getElementById("raporImt").innerText = `${s.imt} (${s.katImt})`;
+
+      document.getElementById("raporLariHasil").innerText = `${s.lari} detik`;
+      document.getElementById("raporLariSkor").innerText = s.skorLari;
+      document.getElementById("raporSitupHasil").innerText = `${s.situp} kali`;
+      document.getElementById("raporSitupSkor").innerText = s.skorSitup;
+      document.getElementById("raporLoncatHasil").innerText = `${s.loncat} cm`;
+      document.getElementById("raporLoncatSkor").innerText = s.skorLoncat;
+
+      document.getElementById("raporNilaiAkhir").innerText = s.nilaiAkhir;
+      document.getElementById("raporPredikat").innerText = `Predikat: ${s.predikat}`;
+
+      // Buat Rekomendasi Otomatis
+      let rek = "Pertahankan latihan fisik rutin dan pola makan gizi seimbang.";
+      if (s.skorLari <= 2) rek = "Perlu peningkatan latihan kecepatan (sprint pendek & interval running).";
+      else if (s.skorSitup <= 2) rek = "Perlu penguatan daya tahan otot perut (plank & sit-up bertahap).";
+      else if (s.skorLoncat <= 2) rek = "Perlu latihan daya ledak otot tungkai (squat jump & plyometrics).";
+      document.getElementById("raporRekomendasi").innerText = `💡 Evaluasi: ${rek}`;
+
+      renderGrafik([s.skorLari, s.skorSitup, s.skorLoncat]);
+    }
+
+    // Fungsi Ganti Mode Grafik (Bar <-> Radar)
+    function gantiTipeGrafik() {
+      tipeGrafikSaatIni = tipeGrafikSaatIni === "bar" ? "radar" : "bar";
+      document.getElementById("btnTipeGrafik").innerText = tipeGrafikSaatIni === "bar" ? "🕸️ Mode Radar" : "📊 Mode Batang";
+      if (idSiswaAktif) pilihSiswaUntukRapor(idSiswaAktif);
+    }
+
+    // 5. Render Grafik Komponen (Chart.js)
+    function renderGrafik(dataSkor) {
+      const ctx = document.getElementById("grafikSiswa").getContext("2d");
+      if (chartInstance) chartInstance.destroy();
+
+      const isRadar = tipeGrafikSaatIni === "radar";
+
+      chartInstance = new Chart(ctx, {
+        type: tipeGrafikSaatIni,
+        data: {
+          labels: ["Lari 60m", "Sit-Up", "Loncat Tegak"],
+          datasets: [{
+            label: "Skor TKJI (1-5)",
+            data: dataSkor,
+            backgroundColor: isRadar ? "rgba(29, 78, 216, 0.25)" : ["#1d4ed8", "#0284c7", "#0d9488"],
+            borderColor: isRadar ? "#1d4ed8" : undefined,
+            borderWidth: isRadar ? 2 : 0,
+            pointBackgroundColor: isRadar ? "#1d4ed8" : undefined,
+            borderRadius: isRadar ? 0 : 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: isRadar ? {
+            r: { min: 0, max: 5, ticks: { stepSize: 1 } }
+          } : {
+            y: { beginAtZero: true, max: 5, ticks: { stepSize: 1 } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // 6. Hapus Siswa
+    function hapusSiswa(id) {
+      daftarSiswa = daftarSiswa.filter(item => item.id !== id);
+      simpanDanRender();
+      if (daftarSiswa.length > 0) pilihSiswaUntukRapor(daftarSiswa[0].id);
+      tampilkanToast("Data siswa dihapus", "🗑️");
+    }
+
+    // 7. Muat Data Simulasi Awal
+    function resetDataContoh() {
+      const contoh = [
+        { id: 1, nama: "Ahmad Fauzi", kelas: "X-1", jk: "L", tinggi: 168, berat: 60, lari: 7.5, situp: 35, loncat: 65 },
+        { id: 2, nama: "Citra Lestari", kelas: "X-1", jk: "P", tinggi: 158, berat: 50, lari: 8.3, situp: 29, loncat: 51 },
+        { id: 3, nama: "Budi Santoso", kelas: "X-2", jk: "L", tinggi: 172, berat: 83, lari: 9.4, situp: 22, loncat: 50 }
+      ];
+      daftarSiswa = contoh.map(s => ({
+        ...s,
+        ...hitungDataKebugaran(s.jk, s.tinggi, s.berat, s.lari, s.situp, s.loncat)
+      }));
+      simpanDanRender();
+      pilihSiswaUntukRapor(daftarSiswa[0].id);
+      tampilkanToast("Data contoh berhasil dimuat!", "🔄");
+    }
+
+    // 8. Ekspor Tabel ke File CSV
+    function eksporKeCSV() {
+      if (daftarSiswa.length === 0) {
+        tampilkanToast("Data siswa masih kosong!", "⚠️");
+        return;
+      }
+      const header = ["Nama,Kelas,L/P,Tinggi(cm),Berat(kg),IMT,Kategori_IMT,Lari_60m,SitUp,Loncat_Tegak,Skor_Lari,Skor_SitUp,Skor_Loncat,Nilai_Akhir,Predikat"];
+      const rows = daftarSiswa.map(s => 
+        `"${s.nama}","${s.kelas}",${s.jk},${s.tinggi},${s.berat},${s.imt},${s.katImt},${s.lari},${s.situp},${s.loncat},${s.skorLari},${s.skorSitup},${s.skorLoncat},${s.nilaiAkhir},${s.predikat}`
+      );
+      const csvContent = "data:text/csv;charset=utf-8," + header.concat(rows).join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "Rekap_Kebugaran_PJOK.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      tampilkanToast("File CSV berhasil diunduh!", "📥");
+    }
+
+    // Inisialisasi saat halaman pertama kali dibuka
+    window.onload = () => {
+      kunciProfilPengembang();
+      setTanggalDefault();
+
+      const tersimpan = localStorage.getItem("data_pjok_siswa");
+      if (tersimpan && JSON.parse(tersimpan).length > 0) {
+        daftarSiswa = JSON.parse(tersimpan);
+        simpanDanRender();
+        pilihSiswaUntukRapor(daftarSiswa[0].id);
+      } else {
+        resetDataContoh();
+      }
+    };
+  </script>
+</body>
+</html>
